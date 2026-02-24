@@ -20,27 +20,36 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sophia import SophiaG
+
 from core.interact import interact as io
 from core.leras import nn
 from facelib import FaceType
 from models import ModelBase
 from samplelib import SampleGeneratorFace, SampleProcessor
-
+from core.leras.optimizers import SophiaG
 
 class SAEHDModel(ModelBase):
     # --- 修复后的定义：增加了 lr 参数接收能力 ---
     def _create_sophia_optimizer(self, tensors, name="opt", lr=2e-4, lr_cos=0, lr_dropout=1.0, clipnorm=0.0):
-        from core.leras import nn as lnn
+        
         opts = self.options
         
         # 这里的 lr 会优先使用调用处传进来的变量
         rho = float(opts.get("rho", 0.04))
         wd = float(opts.get("weight_decay", 0.1))
         
-        io.log_info(f"\n[+] {name} 已接通 Sophia-G 二阶优化器 (适配 P106-100)!")
-        
-        return SophiaG(model.parameters(), lr=2e-4, betas=(0.965, 0.99), rho=0.01, weight_decay=1e-1)
+        return SophiaG(
+             tensors,
+             name=name,
+             lr=lr,
+             beta1=0.965,
+             beta2=0.99,
+             rho=rho,
+             weight_decay=wd,
+             lr_dropout=lr_dropout,
+             lr_cos=lr_cos,
+             clipnorm=clipnorm,
+         )
     # --- options ---
     def on_initialize_options(self):
         # 基本沿用原版选项逻辑

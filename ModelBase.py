@@ -414,25 +414,8 @@ class ModelBase(object):
             'sample_for_preview': self.sample_for_preview,
             'choosed_gpu_indexes': self.choosed_gpu_indexes,
         }
-        try:
-            # 保存模型数据
-            with open(self.model_data_path, 'wb') as f:
-                pickle.dump(model_data, f)
-            # ✅ 保存优化器状态
-            for model, filename in self.get_model_filename_list():
-                if hasattr(model, 'state_dict') and callable(model.state_dict):
-                    # PyTorch标准优化器
-                    state_dict = model.state_dict()
-                    state_path = self.get_strpath_storage_for_file(filename)
-                    torch.save(state_dict, state_path)
-                    io.log_info(f"优化器状态已保存: {filename}")
-            # 检查文件大小
-            dat_size = os.path.getsize(self.model_data_path)
-            io.log_info(f"保存成功：模型数据文件大小 {dat_size} 字节")
-        except Exception as e:
-            io.log_info(f"保存失败：{str(e)}")
-            raise
-
+        with open(self.model_data_path, 'wb') as f:
+            pickle.dump(model_data, f)
     def create_backup(self):
         io.log_info ("正在创建备份...", end='\r')
 
