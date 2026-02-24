@@ -1,5 +1,7 @@
 import math
+from pathlib import Path
 import random
+import pickle
 import torch
 import numpy as np
  
@@ -63,6 +65,64 @@ class SophiaG(Optimizer):
             *[torch.zeros_like(t) for t in self.tensors]   # 二阶 Hessian 估计
         ]
         self.initialized = True
+ 
+    def _build_state(self):
+        if not self.initialized:
+            self.initialize_variables()
+ 
+        n_params = len(self.tensors)
+        m_vars = self.weights[1 : n_params + 1]
+        h_vars = self.weights[n_params + 1:]
+ 
+        return {
+            'step': int(self.weights[0].item()),
+            'm': [m.detach().cpu() for m in m_vars],
+            'h': [h.detach().cpu() for h in h_vars],
+            'hyperparams': {
+                'lr': self.lr,
+                'beta1': self.beta1,
+                'beta2': self.beta2,
+                'rho': self.rho,
+                'weight_decay': self.weight_decay,
+                'lr_dropout': self.lr_dropout,
+                'lr_cos': self.lr_cos,
+                'clipnorm': self.clipnorm,
+            },
+        }
+ 
+    def save_weights(self, filepath):
+        state = self._build_state()
+        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+        torch.save(state, filepath)
+ 
+    def load_weights(self, filepath):
+        path = Path(filepath)
+        if not path.exists():
+            return False
+ 
+        state = torch.load(filepath, map_location=self.tensors[0].device if len(self.tensors) > 0 else 'cpu')
+        if not isinstance(state, dict) or 'm' not in state or 'h' not in state:
+            return False
+ 
+        if not self.initialized:
+            self.initialize_variables()
+ 
+        n_params = len(self.tensors)
+        if len(state['m']) != n_params or len(state['h']) != n_params:
+            return False
+ 
+        m_vars = self.weights[1 : n_params + 1]
+        h_vars = self.weights[n_params + 1:]
+ 
+        for dst, src in zip(m_vars, state['m']):
+            dst.copy_(src.to(device=dst.device, dtype=dst.dtype))
+        for dst, src in zip(h_vars, state['h']):
+            dst.copy_(src.to(device=dst.device, dtype=dst.dtype))
+ 
+        step = int(state.get('step', 0))
+        self.weights[0].fill_(step)
+        self._step = step
+        return True
  
     @torch.no_grad()
     def step(self, closure=None):
